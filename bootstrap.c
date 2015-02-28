@@ -45,14 +45,8 @@ void dump_bytes(void *dst) {
 			arm11_buffer[3], arm11_buffer[4], arm11_buffer[5]);
 }
 
-int arm11_kernel_exploit_setup(void)
+int get_version_specific_addresses()
 {
-	unsigned int *test;
-	int i;
-	int (*nop_func)(void);
-	int *ipc_buf;
-	int model;
-
 	// get proper patch address for our kernel -- thanks yifanlu once again
 	kversion = *(unsigned int *)0x1FF80000; // KERNEL_VERSION register
 	patch_addr = 0;
@@ -61,7 +55,6 @@ int arm11_kernel_exploit_setup(void)
 
 	if(!isN3DS || kversion < 0x022C0600)
 	{
-	
 		if (kversion == 0x02220000) // 2.34-0 4.1.0
 		{
 			patch_addr = 0xEFF83C97;
@@ -115,6 +108,22 @@ int arm11_kernel_exploit_setup(void)
 			return 0;
 		}
 	}
+
+#ifdef DEBUG_PROCESS
+	printf("createThread Addr: %x\nSVC Addr:          %x\n", patch_addr, svc_patch_addr);
+#endif
+	return 1;
+}
+
+int arm11_kernel_exploit_setup(void)
+{
+	unsigned int *test;
+	int i;
+	int (*nop_func)(void);
+	int *ipc_buf;
+	int model;
+
+	get_version_specific_addresses();
 #ifdef DEBUG_PROCESS
 	printf("Loaded adr %x for kernel %x\n", patch_addr, kversion); 
 #endif
@@ -177,6 +186,8 @@ int arm11_kernel_exploit_setup(void)
 	gfxFlushBuffers();
 	gfxSwapBuffers();
 #endif
+
+	get_version_specific_addresses();
 
 	return 1;
 }
@@ -275,7 +286,7 @@ int doARM11Hax()
 #endif
 
 		arm11_kernel_exploit_exec (arm11_kernel_stub);
-		if(patched_svc > 0)
+		//if(patched_svc > 0)
 		{
 #ifdef DEBUG_PROCESS
 			printf("Testing SVC 0x7B\n");

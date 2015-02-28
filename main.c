@@ -40,7 +40,7 @@ int main()
 	hbInit();
 
 	qtmInit();
-	consoleInit(GFX_BOTTOM, NULL);
+	consoleInit(GFX_TOP, NULL);
 
 	doARM11Hax();
 
