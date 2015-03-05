@@ -80,7 +80,12 @@ int get_version_specific_addresses()
 			patch_addr = 0xEFF8372B;
 			svc_patch_addr = 0xEFF822A4;
 		}
-		else if (kversion == 0x022C0600 || kversion == 0x022E0000) // 2.44-6 8.0.0, 2.26-0 9.0.0
+		else if (kversion == 0x022C0600) // 2.44-6 8.0.0
+		{
+			patch_addr = 0xDFF83767;
+			svc_patch_addr = 0xDFF82294;
+		}
+		else if (kversion == 0x022E0000) // 2.26-0 9.0.0
 		{
 			patch_addr = 0xDFF83837;
 			svc_patch_addr = 0xDFF82290;
