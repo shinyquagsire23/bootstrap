@@ -31,12 +31,7 @@ void waitKey() {
 int main()
 {
 	// Initialize services
-	srvInit();			// mandatory
-	aptInit();			// mandatory
-	hidInit(NULL);	// input (buttons, screen)
-	gfxInitDefault();			// graphics
-	fsInit();
-	sdmcInit();
+	gfxInitDefault(); // graphics
 	hbInit();
 
 	qtmInit();
@@ -53,12 +48,7 @@ int main()
 
 	// Exit services
 	hbExit();
-	sdmcExit();
-	fsExit();
 	gfxExit();
-	hidExit();
-	aptExit();
-	srvExit();
 	
 	// Return to hbmenu
 	return 0;
