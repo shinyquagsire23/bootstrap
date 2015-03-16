@@ -11,3 +11,9 @@ InvalidateEntireDataCache:
 	mov r0, #0
 	mcr p15, 0, r0, c7, c10, 0
 	bx lr
+
+.global svcBackdoor
+.type svcBackdoor, %function
+svcBackdoor:
+   svc 0x7B
+   bx lr

