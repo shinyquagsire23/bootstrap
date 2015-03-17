@@ -45,7 +45,7 @@ extern void memcpy_asm(void *dest, const void *src, size_t n);
 // Uncomment to have progress printed w/ printf
 #define DEBUG_PROCESS
 
-#define dbg_log(...) printf(__VA_ARGS__)
+#define dbg_log(...) dbg_log(__VA_ARGS__)
 #ifdef DEBUG_PROCESS
 #else
 #define dbg_log(...)
@@ -92,132 +92,130 @@ int get_version_specific_addresses()
 
 	jump_table_phys_addr = 0x1FFF4C80;
 
-	if(!isN3DS)
+	if(!isN3DS || kversion < 0x022C0600)
 	{
-		if (kversion == 0x02220000) // 2.34-0 4.1.0
+		switch (kversion)
 		{
-			patch_addr = 0xEFF83C97;
-			svc_patch_addr = 0xEFF827CC;
-			reboot_patch_addr = 0xEFFF497C;
-			trigger_func_addr = 0xFFF748C4;
-			jump_table_addr = 0xEFFF4C80;
-			fcram_addr = 0xF0000000;
-			func_patch_addr = 0xEFFE4DD4;
-			func_patch_return = 0xFFF84DDC;
-			pdn_regs = 0xFFFD0000;
-			pxi_regs = 0xFFFD2000;
-		}
-		else if (kversion == 0x02230600) // 2.35-6 5.0.0
-		{
-			patch_addr = 0xEFF8372F;
-			svc_patch_addr = 0xEFF822A8;
-			reboot_patch_addr = 0xEFFF4978;
-			trigger_func_addr = 0xFFF64B94;
-			jump_table_addr = 0xEFFF4C80;
-			fcram_addr = 0xF0000000;
-			func_patch_addr = 0xEFFE55BC;
-			func_patch_return = 0xFFF765C4;
-			pdn_regs = 0xFFFD0000;
-			pxi_regs = 0xFFFD2000;
-		}
-		else if (kversion == 0x02240000 || kversion == 0x02250000 || kversion == 0x02260000) // 2.36-0 5.1.0, 2.37-0 6.0.0, 2.38-0 6.1.0
-		{
-			patch_addr = 0xEFF8372B;
-			svc_patch_addr = 0xEFF822A4;
-			reboot_patch_addr = 0xEFFF4978;
-			if(kversion == 0x02240000) //5.1
-			{
+			case 0x02220000: // 2.34-0 4.1.0
+				patch_addr = 0xEFF83C97;
+				svc_patch_addr = 0xEFF827CC;
+				reboot_patch_addr = 0xEFFF497C;
+				trigger_func_addr = 0xFFF748C4;
+				jump_table_addr = 0xEFFF4C80;
+				fcram_addr = 0xF0000000;
+				func_patch_addr = 0xEFFE4DD4;
+				func_patch_return = 0xFFF84DDC;
+				pdn_regs = 0xFFFD0000;
+				pxi_regs = 0xFFFD2000;
+			break;
+			case 0x02230600: // 2.35-6 5.0.0
+				patch_addr = 0xEFF8372F;
+				svc_patch_addr = 0xEFF822A8;
+				reboot_patch_addr = 0xEFFF4978;
+				trigger_func_addr = 0xFFF64B94;
+				jump_table_addr = 0xEFFF4C80;
+				fcram_addr = 0xF0000000;
+				func_patch_addr = 0xEFFE55BC;
+				func_patch_return = 0xFFF765C4;
+				pdn_regs = 0xFFFD0000;
+				pxi_regs = 0xFFFD2000;
+			break;
+			case 0x02240000: // 2.36-0 5.1.0
 				trigger_func_addr = 0xFFF64B90;
 				func_patch_addr = 0xEFFE55B8;
 				func_patch_return = 0xFFF765C0;
 				pdn_regs = 0xFFFD0000;
 				pxi_regs = 0xFFFD2000;
-			}
-			else
-			{
+				patch_addr = 0xEFF8372B;
+				svc_patch_addr = 0xEFF822A4;
+				reboot_patch_addr = 0xEFFF4978;
+				jump_table_addr = 0xEFFF4C80;
+				fcram_addr = 0xF0000000;
+			break;
+			case 0x02250000: // 2.37-0 6.0.0
+			case 0x02260000: // 2.38-0 6.1.0
+				patch_addr = 0xEFF8372B;
+				svc_patch_addr = 0xEFF822A4;
+				reboot_patch_addr = 0xEFFF4978;
 				trigger_func_addr = 0xFFF64A78;
 				func_patch_addr = 0xEFFE5AE8;
 				func_patch_return = 0xFFF76AF0;
 				pdn_regs = 0xFFFD0000;
 				pxi_regs = 0xFFFD2000;
-			}
-			jump_table_addr = 0xEFFF4C80;
-			fcram_addr = 0xF0000000;
-		}
-		else if (kversion == 0x02270400) // 2.39-4 7.0.0
-		{
-			patch_addr = 0xEFF8372F;
-			svc_patch_addr = 0xEFF822A8;
-			reboot_patch_addr = 0xEFFF4978;
-			trigger_func_addr = 0xFFF64AB0;
-			jump_table_addr = 0xEFFF4C80;
-			fcram_addr = 0xF0000000;
-			func_patch_addr = 0xEFFE5B34;
-			func_patch_return = 0xFFF76B3C;
-			pdn_regs = 0xFFFD0000;
-			pxi_regs = 0xFFFD2000;
-		}
-		else if (kversion == 0x02280000) // 2.40-0 7.2.0
-		{
-			patch_addr = 0xEFF8372B;
-			svc_patch_addr = 0xEFF822A4;
-			reboot_patch_addr = 0xEFFF4974;
-			trigger_func_addr = 0xFFF54BAC;
-			jump_table_addr = 0xEFFF4C80;
-			fcram_addr = 0xF0000000;
-			func_patch_addr = 0xEFFE5B30;
-			func_patch_return = 0xFFF76B38;
-			pdn_regs = 0xFFFD0000;
-			pxi_regs = 0xFFFD2000;
-		}
-		else if (kversion == 0x022C0600) // 2.44-6 8.0.0
-		{
-			patch_addr = 0xDFF83767;
-			svc_patch_addr = 0xDFF82294;
-			reboot_patch_addr = 0xDFFF4974;
-			trigger_func_addr = 0xFFF54BAC;
-			jump_table_addr = 0xDFFF4C80;
-			fcram_addr = 0xE0000000;
-			func_patch_addr = 0xDFFE4F28;
-			func_patch_return = 0xFFF66F30;
-			pdn_regs = 0xFFFBE000;
-			pxi_regs = 0xFFFC0000;
-		}
-		else if (kversion == 0x022E0000) // 2.26-0 9.0.0
-		{
-			patch_addr = 0xDFF83837;
-			svc_patch_addr = 0xDFF82290;
-			reboot_patch_addr = 0xEFFF4974;
-			trigger_func_addr = 0xFFF151C0;
-			jump_table_addr = 0xDFFF4C80;
-			fcram_addr = 0xE0000000;
-			func_patch_addr = 0xDFFE59D0;
-			func_patch_return = 0xFFF279D8;
-			pdn_regs = 0xFFFC2000;
-			pxi_regs = 0xFFFC4000;
-		}
-		else
-		{
+				jump_table_addr = 0xEFFF4C80;
+				fcram_addr = 0xF0000000;
+			break;
+			case 0x02270400: // 2.39-4 7.0.0
+				patch_addr = 0xEFF8372F;
+				svc_patch_addr = 0xEFF822A8;
+				reboot_patch_addr = 0xEFFF4978;
+				trigger_func_addr = 0xFFF64AB0;
+				jump_table_addr = 0xEFFF4C80;
+				fcram_addr = 0xF0000000;
+				func_patch_addr = 0xEFFE5B34;
+				func_patch_return = 0xFFF76B3C;
+				pdn_regs = 0xFFFD0000;
+				pxi_regs = 0xFFFD2000;
+			break;
+			case 0x02280000: // 2.40-0 7.2.0
+				patch_addr = 0xEFF8372B;
+				svc_patch_addr = 0xEFF822A4;
+				reboot_patch_addr = 0xEFFF4974;
+				trigger_func_addr = 0xFFF54BAC;
+				jump_table_addr = 0xEFFF4C80;
+				fcram_addr = 0xF0000000;
+				func_patch_addr = 0xEFFE5B30;
+				func_patch_return = 0xFFF76B38;
+				pdn_regs = 0xFFFD0000;
+				pxi_regs = 0xFFFD2000;
+			break;
+			case 0x022C0600: // 2.44-6 8.0.0
+				patch_addr = 0xDFF83767;
+				svc_patch_addr = 0xDFF82294;
+				reboot_patch_addr = 0xDFFF4974;
+				trigger_func_addr = 0xFFF54BAC;
+				jump_table_addr = 0xDFFF4C80;
+				fcram_addr = 0xE0000000;
+				func_patch_addr = 0xDFFE4F28;
+				func_patch_return = 0xFFF66F30;
+				pdn_regs = 0xFFFBE000;
+				pxi_regs = 0xFFFC0000;
+			break;
+			case 0x022E0000: // 2.26-0 9.0.0
+				patch_addr = 0xDFF83837;
+				svc_patch_addr = 0xDFF82290;
+				reboot_patch_addr = 0xEFFF4974;
+				trigger_func_addr = 0xFFF151C0;
+				jump_table_addr = 0xDFFF4C80;
+				fcram_addr = 0xE0000000;
+				func_patch_addr = 0xDFFE59D0;
+				func_patch_return = 0xFFF279D8;
+				pdn_regs = 0xFFFC2000;
+				pxi_regs = 0xFFFC4000;
+			break;
+			default:
 #ifdef DEBUG_PROCESS
-			printf("Unrecognized kernel version %x, returning...\n", kversion);
+				dbg_log("Unrecognized kernel version %x, returning...\n", kversion);
 #endif
-			return 0;
-		}
+				return 0;
+			break;
 	}
 	else
 	{
-		if (kversion == 0x022C0600 || kversion == 0x022E0000) // N3DS 2.44-6 8.0.0, N3DS 2.26-0 9.0.0
+		switch (kversion)
 		{
-			patch_addr = 0xDFF8382F;
-			svc_patch_addr = 0xDFF82260;
-			printf("Insufficient information for ARM9, returning... %i\n", kversion);
-		}
-		else
-		{
+			case 0x022C0600: // N3DS 2.44-6 8.0.0
+			case 0x022E0000: // N3DS 2.26-0 9.0.0
+				patch_addr = 0xDFF8382F;
+				svc_patch_addr = 0xDFF82260;
+				dbg_log("Insufficient information for ARM9, returning... %i\n", kversion);
+			break;
+			default:
 #ifdef DEBUG_PROCESS
-			printf("Unrecognized kernel version %x, returning... %i\n", kversion);
+				dbg_log("Unrecognized kernel version %x, returning... %i\n", kversion);
 #endif
-			return 0;
+				return 0;
+			break;
 		}
 	}
 
@@ -236,11 +234,11 @@ int arm11_kernel_exploit_setup(void)
 	svcControlMemory(&mem_hax_mem, 0, 0, 0x2000, MEMOP_ALLOC_LINEAR, MEMPERM_READ | MEMPERM_WRITE);
 	u32 mem_hax_mem_free = mem_hax_mem + 0x1000;
 
-	printf("Freeing memory\n");
+	dbg_log("Freeing memory\n");
     u32 tmp_addr;
 	svcControlMemory(&tmp_addr, mem_hax_mem_free, 0, 0x1000, MEMOP_FREE, 0); // free page 
 
-	printf("Backing up heap area\n");
+	dbg_log("Backing up heap area\n");
 	do_gshax_copy(arm11_buffer, mem_hax_mem_free, 0x20u);
 
 	u32 saved_heap[8];
@@ -260,7 +258,7 @@ int arm11_kernel_exploit_setup(void)
 	dbg_log("Triggered kernel write\n");
 
 	memcpy(arm11_buffer, saved_heap, sizeof(saved_heap));
-	printf("Restoring heap\n");
+	dbg_log("Restoring heap\n");
 	do_gshax_copy(mem_hax_mem, arm11_buffer, 0x20u);
 
 	// Part 2: trick to clear icache
@@ -325,17 +323,17 @@ arm11_firmlaunch_hax(void)
 
 	// write function hook at 0xFFFF0C80
 	memcpy_asm(jump_table_addr, &jump_table, (&end_jump_table - &jump_table + 1) * 4);
-	//printf("%x = %x\n", jump_table_addr, *(u32*)jump_table_addr);
+	//dbg_log("%x = %x\n", jump_table_addr, *(u32*)jump_table_addr);
 
 	dot();
 	InvalidateEntireDataCache();
 
 	// write FW specific offsets to copied code buffer
-	//printf("%x = %x\n", jump_table_addr + 0x68, *(u32*)(jump_table_addr + 0x68));
+	//dbg_log("%x = %x\n", jump_table_addr + 0x68, *(u32*)(jump_table_addr + 0x68));
 	*(int *)(jump_table_addr + (&pdn_regs_0 - &jump_table)*4) = pdn_regs; // PDN regs
 	*(int *)(jump_table_addr + (&pxi_regs_0 - &jump_table)*4) = pxi_regs; // PXI regs
 	*(int *)(jump_table_addr + (&return_location - &jump_table)*4) = func_patch_return; // where to return to from hook
-	//printf("%x = %x\n", jump_table_addr + 0x68, *(u32*)(jump_table_addr + 0x68));
+	//dbg_log("%x = %x\n", jump_table_addr + 0x68, *(u32*)(jump_table_addr + 0x68));
 
 	dot();
 	InvalidateEntireDataCache();
@@ -392,10 +390,10 @@ bool doARM11Hax()
 	framebuff_top_0 = gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, NULL, NULL);
 	gfxSwapBuffers();
 	framebuff_top_1 = gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, NULL, NULL);
-	printf("Framebuffers at %x and %x\n", framebuff_top_0, framebuff_top_1);
-	printf("Jump table payload is 0x%x bytes long\n", (&end_jump_table - &jump_table + 1) * 4);
-	printf("Jump table vars 0x%x after jump table\n", (&pdn_regs_0 - &jump_table)*4);
-	printf("Reboot wait at %x\n", 0x1FFF4C80 + (&reboot_wait - &jump_table)*4);
+	dbg_log("Framebuffers at %x and %x\n", framebuff_top_0, framebuff_top_1);
+	dbg_log("Jump table payload is 0x%x bytes long\n", (&end_jump_table - &jump_table + 1) * 4);
+	dbg_log("Jump table vars 0x%x after jump table\n", (&pdn_regs_0 - &jump_table)*4);
+	dbg_log("Reboot wait at %x\n", 0x1FFF4C80 + (&reboot_wait - &jump_table)*4);
 
 	if (arm11_kernel_exploit_setup())
 	{
