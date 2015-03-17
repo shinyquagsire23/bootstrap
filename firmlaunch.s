@@ -31,15 +31,6 @@ newloc_func_patch_hook:
 		BL	sub_9D0470_9D252C
 		LDMFD	SP!, {R0-R12,LR}
 
-		STMFD	SP!, {R0-R12,LR}
-		LDR  R1, FB_1
-		MOV  R0, #0xFF
-		STRB R0, [R1]
-		LDR  R1, FB_2
-		STRB R0, [R1]
-		bl invalidate_all_dcache
-		LDMFD	SP!, {R0-R12,LR}
-
 		LDR	R0, dword_9D0470_9D247C
 		STR	R0, [R1]
 		LDR	PC, return_location
@@ -118,10 +109,6 @@ dword_0_1FFF49C8:	.long 0x44846
 firm_exec_ptr:		.long 0x2400000C
 arm9_payload:		.long 0x23F00000
 reboot_ready:		.long 0x10140000
-dword_9D0470_9D24D8:	.long 0x10163008
-dword_9D0470_9D24DC:	.long 0x44846
-FB_1: .long 0x1408ca37 @Supposed bottom screen buffers
-FB_2: .long  0x140c4e37
 
 .align 4
 
