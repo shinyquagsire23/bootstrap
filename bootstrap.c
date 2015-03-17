@@ -199,6 +199,7 @@ int get_version_specific_addresses()
 #endif
 				return 0;
 			break;
+		}
 	}
 	else
 	{
