@@ -4,6 +4,7 @@
 #include <string.h>
 #include <malloc.h>
 #include <dirent.h>
+
 #include "bootstrap.h"
 
 void waitKey() {
@@ -31,34 +32,19 @@ void waitKey() {
 int main()
 {
 	// Initialize services
-	srvInit();			// mandatory
-	aptInit();			// mandatory
-	hidInit(NULL);	// input (buttons, screen)
-	gfxInitDefault();			// graphics
-	fsInit();
-	sdmcInit();
+	gfxInitDefault(); // graphics
 	hbInit();
 
-	qtmInit();
 	consoleInit(GFX_TOP, NULL);
 
-	doARM11Hax();
+    while (!doARM11Hax());
 
-	//consoleClear();
-	printf("%x\n", arm11_buffer[0]);
-
+    printf("Success!\n\n");
 	waitKey();
-
-	printf("Exiting...\n");
 
 	// Exit services
 	hbExit();
-	sdmcExit();
-	fsExit();
 	gfxExit();
-	hidExit();
-	aptExit();
-	srvExit();
 	
 	// Return to hbmenu
 	return 0;
