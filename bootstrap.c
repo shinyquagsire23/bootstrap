@@ -37,7 +37,6 @@ extern void* pxi_regs_0 asm("pxi_regs_0");
 extern void* return_location asm("return_location");
 extern void* reboot_wait asm("reboot_wait");
 extern void* end_jump_table asm("end_jump_table");
-extern void memcpy_asm(void *dest, const void *src, size_t n);
 
 // Uncomment to have progress printed w/ printf
 //#define DEBUG_PROCESS
@@ -47,6 +46,25 @@ extern void memcpy_asm(void *dest, const void *src, size_t n);
 #else
 #define dbg_log(...)
 #endif
+
+static void *memcpy32(void *dst, const void *src, size_t n)
+{
+	int32_t *p;
+
+	p = dst;
+
+	if (dst == NULL || src == NULL)
+		return p;
+
+	while (n) {
+		*p = *(int32_t *)src;
+		p++;
+		src++;
+		n--;
+	}
+
+	return dst;
+}
 
 int do_gshax_copy(void *dst, void *src, unsigned int len)
 {
@@ -304,12 +322,12 @@ arm11_firmlaunch_hax(void)
 	dot();
 
 	// ARM9 code copied to FCRAM 0x23F00000
-	memcpy_asm(fcram_addr + 0x3F00000, arm9_payload, arm9_payload_size);
+	memcpy32(fcram_addr + 0x3F00000, arm9_payload, arm9_payload_size);
 
 	dot();
 
 	// write function hook at 0xFFFF0C80
-	memcpy_asm(jump_table_addr, &jump_table, (&end_jump_table - &jump_table + 1) * 4);
+	memcpy32(jump_table_addr, &jump_table, (&end_jump_table - &jump_table + 1) * 4);
 	//dbg_log("%x = %x\n", jump_table_addr, *(u32*)jump_table_addr);
 
 	dot();
