@@ -7,7 +7,6 @@
 
 #include "utils.h"
 
-u32 nop_slide[0x1000] __attribute__((aligned(0x1000)));
 unsigned int patch_addr;
 unsigned int svc_patch_addr;
 unsigned int reboot_patch_addr;
@@ -38,8 +37,6 @@ extern void* pxi_regs_0 asm("pxi_regs_0");
 extern void* return_location asm("return_location");
 extern void* reboot_wait asm("reboot_wait");
 extern void* end_jump_table asm("end_jump_table");
-extern void InvalidateEntireInstructionCache();
-extern void InvalidateEntireDataCache();
 extern void memcpy_asm(void *dest, const void *src, size_t n);
 
 // Uncomment to have progress printed w/ printf
@@ -261,14 +258,7 @@ int arm11_kernel_exploit_setup(void)
 	memcpy(arm11_buffer, saved_heap, sizeof(saved_heap));
 	dbg_log("Restoring heap\n");
 	do_gshax_copy(mem_hax_mem, arm11_buffer, 0x20u);
-
-	// Part 2: trick to clear icache
-	build_nop_slide(arm11_buffer, 0x1000);
-	do_gshax_copy(nop_slide, arm11_buffer, 0x1000);
-	HB_FlushInvalidateCache();
-
-	((void (*)(void))nop_slide)();
-	dbg_log("Executed nop slide\n");
+	synci();
 
 	return 1;
 }
@@ -308,26 +298,21 @@ arm11_firmlaunch_hax(void)
 	int (*trigger_func)(int, int, int, int) = trigger_func_addr;
 	dot();
 
-	InvalidateEntireInstructionCache();
 	framebuff_top_0[7] = 0xFF;
 	framebuff_top_1[7] = 0xFF;
-	InvalidateEntireDataCache();
 
 	dot();
-	InvalidateEntireDataCache();
 
 	// ARM9 code copied to FCRAM 0x23F00000
 	memcpy_asm(fcram_addr + 0x3F00000, arm9_payload, arm9_payload_size);
 
 	dot();
-	InvalidateEntireDataCache();
 
 	// write function hook at 0xFFFF0C80
 	memcpy_asm(jump_table_addr, &jump_table, (&end_jump_table - &jump_table + 1) * 4);
 	//dbg_log("%x = %x\n", jump_table_addr, *(u32*)jump_table_addr);
 
 	dot();
-	InvalidateEntireDataCache();
 
 	// write FW specific offsets to copied code buffer
 	//dbg_log("%x = %x\n", jump_table_addr + 0x68, *(u32*)(jump_table_addr + 0x68));
@@ -337,14 +322,12 @@ arm11_firmlaunch_hax(void)
 	//dbg_log("%x = %x\n", jump_table_addr + 0x68, *(u32*)(jump_table_addr + 0x68));
 
 	dot();
-	InvalidateEntireDataCache();
 
 	// patch function 0xFFF84D90 to jump to our hook
 	*(int *)(func_patch_addr + 0) = 0xE51FF004; // ldr pc, [pc, #-4]
 	*(int *)(func_patch_addr + 4) = 0xFFFF0C80; // jump_table + 0
 
 	dot();
-	InvalidateEntireDataCache();
 
 	// patch reboot start function to jump to our hook
 	*(int *)(reboot_patch_addr + 0) = 0xE51FF004; // ldr pc, [pc, #-4]
@@ -353,14 +336,13 @@ arm11_firmlaunch_hax(void)
 	framebuff_top_0[42+1] = 0xFF;
 	framebuff_top_1[42+1] = 0xFF;
 	dotNum += 6;
-	InvalidateEntireDataCache();
 
-	InvalidateEntireInstructionCache();
+	synci();
+
 	framebuff_top_0[48+2] = 0xFF;
 	framebuff_top_1[48+2] = 0xFF;
 	dotNum += 6;
 
-	InvalidateEntireDataCache();
 	trigger_func(0, 0, 2, 0); // trigger reboot
 	while(1){}
 
@@ -374,13 +356,6 @@ bool doARM11Hax()
 {
 	int result = 0;
 	int i;
-
-	HB_ReprotectMemory(nop_slide, 4, 7, &result);
-	build_nop_slide(nop_slide, 0x1000);
-	HB_FlushInvalidateCache();
-
-	((void (*)(void))nop_slide)();
-	dbg_log("Executed test nop slide\n");
 
 	arm11_buffer = linearMemAlign(0x10000, 0x10000);
 
