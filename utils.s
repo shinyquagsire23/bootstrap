@@ -1,11 +1,5 @@
 .arm
 
-.global svcBackdoor
-.type svcBackdoor, %function
-svcBackdoor:
-   svc 0x7B
-   bx lr
-
 .global memcpy_asm
 .type memcpy_asm, %function
 memcpy_asm:
