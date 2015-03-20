@@ -1,11 +1,10 @@
 #include <3ds.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <malloc.h>
 #include <dirent.h>
-
-#include "utils.h"
 
 unsigned int patch_addr;
 unsigned int svc_patch_addr;
@@ -64,6 +63,14 @@ static void *memcpy32(void *dst, const void *src, size_t n)
 	}
 
 	return dst;
+}
+
+static void synci()
+{
+	__asm__ volatile(
+		"mcr p15, 0, r0, c7, c10, 5\n"
+		"mcr p15, 0, r0, c7, c5, 4\n"
+		::: "r0");
 }
 
 int do_gshax_copy(void *dst, void *src, unsigned int len)
