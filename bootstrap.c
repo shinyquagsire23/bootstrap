@@ -288,14 +288,6 @@ int arm11_kernel_exploit_setup(void)
 	return 1;
 }
 
-// after running setup, run this to execute func in ARM11 kernel mode
-int __attribute__((naked))
-arm11_kernel_exploit_exec (int (*func)(void))
-{
-	asm volatile ("svc 8 \t\n" // CreateThread syscall, corrupted, args not needed
-				  "bx lr \t\n");
-}
-
 
 void test(void)
 {
@@ -400,7 +392,10 @@ bool doARM11Hax()
 	{
 		dbg_log("Kernel exploit set up\n");
 
-		arm11_kernel_exploit_exec(arm11_firmlaunch_hax);
+		asm volatile ("ldr r0, =%0\t\n"
+			"svc 8 \t\n" // CreateThread syscall, corrupted, args not needed
+			:: "i"(arm11_firmlaunch_hax)
+			: "r0");
 		dbg_log("ARM11 code passed somehow, ARM9 failed...\n");
 	}
 
