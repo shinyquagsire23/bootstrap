@@ -4,7 +4,6 @@
 #include <string.h>
 #include <malloc.h>
 #include <dirent.h>
-#include "payload_bin.h"
 #include "bootstrap.h"
 
 void waitKey() {
