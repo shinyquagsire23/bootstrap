@@ -37,9 +37,6 @@ int main()
 
 	//consoleInit(GFX_TOP, NULL);
 
-	arm9_payload = payload_bin;
-	arm9_payload_size = payload_bin_size;
-
     while (!doARM11Hax());
 
     printf("Success!\n\n");

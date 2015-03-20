@@ -6,6 +6,8 @@
 #include <malloc.h>
 #include <dirent.h>
 
+#include "payload_bin.h"
+
 unsigned int patch_addr;
 unsigned int svc_patch_addr;
 unsigned int reboot_patch_addr;
@@ -28,8 +30,6 @@ u8 backupHeap = 0;
 u32 *backup;
 
 unsigned int *arm11_buffer;
-unsigned int *arm9_payload;
-unsigned int arm9_payload_size;
 extern void* jump_table asm("jump_table");
 extern void* pdn_regs_0 asm("pdn_regs_0");
 extern void* pxi_regs_0 asm("pxi_regs_0");
@@ -329,7 +329,7 @@ arm11_firmlaunch_hax(void)
 	dot();
 
 	// ARM9 code copied to FCRAM 0x23F00000
-	memcpy32(fcram_addr + 0x3F00000, arm9_payload, arm9_payload_size);
+	memcpy32(fcram_addr + 0x3F00000, payload_bin, payload_bin_size);
 
 	dot();
 
