@@ -59,7 +59,7 @@ static void *memcpy32(void *dst, const void *src, size_t n)
 		*p = *(int32_t *)src;
 		p++;
 		src++;
-		n--;
+		n -= sizeof(int32_t);
 	}
 
 	return dst;
