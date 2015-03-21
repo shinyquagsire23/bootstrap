@@ -45,7 +45,7 @@ extern void memcpy_asm(void *dest, const void *src, size_t n);
 // Uncomment to have progress printed w/ printf
 //#define DEBUG_PROCESS
 
-#define dbg_log(...) dbg_log(__VA_ARGS__)
+#define dbg_log(...) printf(__VA_ARGS__)
 #ifdef DEBUG_PROCESS
 #else
 #define dbg_log(...)
