@@ -62,14 +62,6 @@ static void *memcpy32(void *dst, const void *src, size_t n)
 	return dst;
 }
 
-static void synci()
-{
-	__asm__ volatile(
-		"mcr p15, 0, r0, c7, c10, 5\n"
-		"mcr p15, 0, r0, c7, c5, 4\n"
-		::: "r0");
-}
-
 int do_gshax_copy(void *dst, void *src, unsigned int len)
 {
 	unsigned int check_mem = linearMemAlign(0x10000, 0x40);
@@ -350,7 +342,11 @@ arm11_firmlaunch_hax(void)
 	framebuff_top_1[42+1] = 0xFF;
 	dotNum += 6;
 
-	synci();
+	__asm__ volatile(
+		"mov r0, #0\n"
+		"mcr p15, 0, r0, c7, c10, 5\n" // Invalidate Icache
+		"mcr p15, 0, r0, c7, c5, 4\n" // Clear Dcache
+		::: "r0");
 
 	framebuff_top_0[48+2] = 0xFF;
 	framebuff_top_1[48+2] = 0xFF;
