@@ -19,15 +19,12 @@ unsigned int func_patch_return;
 unsigned int fcram_addr;
 unsigned int pdn_regs;
 unsigned int pxi_regs;
-unsigned char patched_svc = 0;
 unsigned int kversion;
 
 unsigned char *framebuff_top_0;
 unsigned char *framebuff_top_1;
 
 u8 isN3DS = 0;
-u8 backupHeap = 0;
-u32 *backup;
 
 unsigned int *arm11_buffer;
 extern void* jump_table asm("jump_table");
