@@ -184,7 +184,7 @@ int get_version_specific_addresses()
 			case 0x022E0000: // 2.26-0 9.0.0
 				patch_addr = 0xDFF83837;
 				svc_patch_addr = 0xDFF82290;
-				reboot_patch_addr = 0xEFFF4974;
+				reboot_patch_addr = 0xDFFF4974;
 				trigger_func_addr = 0xFFF151C0;
 				jump_table_addr = 0xDFFF4C80;
 				fcram_addr = 0xE0000000;
