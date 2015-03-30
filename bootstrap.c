@@ -209,7 +209,14 @@ int get_version_specific_addresses()
 			case 0x022E0000: // N3DS 2.26-0 9.0.0
 				patch_addr = 0xDFF8382F;
 				svc_patch_addr = 0xDFF82260;
-				dbg_log("Insufficient information for ARM9, returning... %i\n", kversion);
+				reboot_patch_addr = 0xDFFF4994;
+				trigger_func_addr = 0xFFF158F8;
+				jump_table_addr = 0xDFFF4C80;
+				fcram_addr = 0xE0000000;
+				func_patch_addr = 0xDFFE7A50;
+				func_patch_return = 0xFFF28A58;
+				pdn_regs = 0xFFFBE000;
+				pxi_regs = 0xFFFC0000;
 			break;
 			default:
 #ifdef DEBUG_PROCESS
