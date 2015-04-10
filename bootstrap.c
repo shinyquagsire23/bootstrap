@@ -64,7 +64,7 @@ int do_gshax_copy(void *dst, void *src, unsigned int len)
 		GSPGPU_FlushDataCache(NULL, check_mem, 16);
 		GX_SetTextureCopy(NULL, src, 0, check_mem, 0, 0x40, 8);
 	}
-
+	HB_FlushInvalidateCache();
 	linearFree(check_mem);
 
 	return 0;
